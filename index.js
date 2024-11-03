@@ -1,7 +1,14 @@
 const { program } = require('commander');
 const express = require('express')
 const app = express()
+const path = require('path');
 const fs = require('fs');
+
+const multer = require('multer');
+const upload = multer();
+
+app.use(express.json());
+app.use(express.text());
 
 //CMD PARSER ---
 program.requiredOption('-h, --host <host>')
@@ -13,47 +20,39 @@ const options = program.opts();
 const host = options.host;
 const port = options.port;
 const cache = options.cache;
-app.use(express.json());
-app.use(express.text());
+
 //SERVER ---
 app.get('/notes/:name',async (req,res) => {
     const noteName = req.params.name; 
  
-    const data = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
-    const notes = JSON.parse(data); 
-    let note; 
+    const notesJson = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
+    const notesObj = JSON.parse(notesJson); 
 
-    for (const noteItem of notes) {
+    for (const noteItem of notesObj) {
         if (noteItem.name === noteName) {
-            note = noteItem; 
-            break;
+            res.status(200).send(noteItem.text);
+            return
         }
     }
-
-    if (note) {
-        res.status(200).send(note.text); 
-    } else {
-        res.status(404); 
-    }
-  
-})
+    res.status(404).send(); 
+});
 app.get('/notes', async(req,res)=>{
-    const data = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
-    const notes = JSON.parse(data)
-    res.status(200).json(notes)
+    const notesJson = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
+    const notesObj = JSON.parse(notesJson); 
+    res.status(200).json(notesObj)
 });
 
 app.put('/notes/:name', async (req, res) => {
     const noteName = req.params.name;
     const bodyText = req.body; 
 
-    const data = await fs.promises.readFile(`${cache}/notes.json`, 'utf8');
-    const notes = JSON.parse(data);
+    const notesJson = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
+    const notesObj = JSON.parse(notesJson); 
 
-    for (let noteItem of notes) {
+    for (let noteItem of notesObj) {
         if (noteItem.name === noteName) {
             noteItem.text = bodyText; 
-            await fs.promises.writeFile(`${cache}/notes.json`, JSON.stringify(notes, null, 2));
+            await fs.promises.writeFile(`${cache}/notes.json`, JSON.stringify(notesObj, null, 2));
             return res.status(200).send(); 
         }
     }
@@ -63,20 +62,45 @@ app.put('/notes/:name', async (req, res) => {
 app.delete('/notes/:name',async(req,res)=>{
     const noteName = req.params.name;
 
-    const data = await fs.promises.readFile(`${cache}/notes.json`, 'utf8');
-    const notes = JSON.parse(data);
+    const notesJson = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
+    const notesObj = JSON.parse(notesJson); 
 
-    for (let noteItem of notes) {
+    for (let noteItem of notesObj) {
         if (noteItem.name === noteName) {
-            noteIndex = notes.indexOf(noteItem);
-            notes.splice(noteIndex,1)
-            await fs.promises.writeFile(`${cache}/notes.json`, JSON.stringify(notes, null, 2));
+            noteIndex = notesObj.indexOf(noteItem);
+            notesObj.splice(noteIndex,1)
+            await fs.promises.writeFile(`${cache}/notes.json`, JSON.stringify(notesObj, null, 2));
             return res.status(200).send(); 
         }
     }
     res.status(404).send(); 
 });
+app.post('/write', upload.none(), async (req, res) => {
+    const note_name = req.body.note_name
+    const note  = req.body.note;
 
+    if (!note_name) {
+        return res.status(400).send('You did not write name');
+    }else if (!note){
+        return res.status(400).send('You did not write text');
+    }
+
+    const notesJson = await fs.promises.readFile(`${cache}/notes.json`, 'utf8'); 
+    const notesObj = JSON.parse(notesJson); 
+    for (let noteItem of notesObj) {
+        if (noteItem.name === note_name) {
+            return res.status(400).send();
+        }
+    }
+
+    notesObj.push({ name: note_name, text: note });
+    await fs.promises.writeFile(`${cache}/notes.json`, JSON.stringify(notesObj, null, 2));
+
+    res.status(201).send();
+});
+app.get('/UploadForm.html',(req,res)=>{
+    res.sendFile(path.join(__dirname,'UploadForm.html'))
+});
 
 app.listen(port, host, () => {
     console.log(`Server is running at http://${host}:${port}/`);
