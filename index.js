@@ -98,7 +98,7 @@ app.post('/write', upload.none(), async (req, res) => {
 
     res.status(201).send();
 });
-app.get('/UploadForm.html',(req,res)=>{
+app.get('/UploadForm.html', async (req,res)=>{
     res.sendFile(path.join(__dirname,'UploadForm.html'))
 });
 
